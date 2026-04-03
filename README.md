@@ -10,54 +10,13 @@ When you run multiple AI bots on Discord, chat histories grow unbounded — cont
 
 ## Quick Start
 
-### Prerequisites
-
-- Node.js 20+
-- A Discord account with a server you control
-- An OpenAI-compatible API key (OpenAI, Anthropic proxy, Groq, Ollama, etc.)
-
-### 1. Create Your Discord Bot
-
-1. Go to [discord.com/developers/applications](https://discord.com/developers/applications)
-2. Click **New Application** → give it a name (e.g. `conductor`)
-3. Go to **Bot** tab → enable **Message Content Intent** under Privileged Gateway Intents
-4. Click **Reset Token** and copy it
-5. Go to **OAuth2 → URL Generator**, select scopes: `bot`, `applications.commands`
-6. Select permissions: Manage Channels, Manage Threads, Send Messages, Read Message History, Embed Links, Attach Files
-7. Open the generated URL and authorize for your server
-
-### 2. Configure Environment
-
-```bash
-git clone https://github.com/your-username/openclaw-conductor
-cd openclaw-conductor
-npm install
-cp .env.example .env
-```
-
-Edit `.env` with your Discord bot token, guild ID, and API key.
-
-### 3. Configure AI Provider
-
-```bash
-cp providers.example.yaml providers.yaml
-```
-
-Edit `providers.yaml` — set your provider's base URL, API key, and choose models for the fallback chain. See [providers.example.yaml](providers.example.yaml) for the full format.
-
-If you skip this step, the bot falls back to `.env` settings (`OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_BASE_URL`).
-
-### 4. Start the Bot
-
-```bash
-npm start
-```
-
-The bot shows **Online** in your Discord server and slash commands register automatically.
+See **[QUICKSTART.md](QUICKSTART.md)** for the minimal setup steps to get the bot online in under five minutes.
 
 ---
 
-## DM Commands
+## Commands
+
+### DM Commands
 
 Talk to the conductor via Direct Message:
 
@@ -68,7 +27,7 @@ Talk to the conductor via Direct Message:
 | `!clean` | Archive conversation to memory, then delete bot messages (with confirmation) |
 | `stop` | Interrupt a running task |
 
-## Slash Commands
+### Slash Commands
 
 Use these in a guild channel:
 
