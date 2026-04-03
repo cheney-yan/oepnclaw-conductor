@@ -1,0 +1,37 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Environment — never commit secrets
+.env
+
+# Runtime data — local only
+data/
+logs/
+
+# Long-term memory — personal, never commit
+data/memory/
+
+# providers.yaml contains API keys — never commit
+providers.yaml
+
+# TypeScript cache
+*.tsbuildinfo
+
+# OS artifacts
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+.history/
+
+# Claude Code local settings
+.claude/
+
+# OpenClaw source reference (local only, do not commit)
+vendor/

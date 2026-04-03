@@ -1,0 +1,37 @@
+{
+  "name": "openclaw-conductor",
+  "version": "0.1.0",
+  "description": "A Discord meta-bot that manages OpenClaw bot instances — ticket lifecycle, thread summaries, memory inspection, and config management.",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "run": "NODE_ENV=development ts-node src/index.ts",
+    "start": "NODE_ENV=production node dist/index.js",
+    "register": "ts-node src/discord/register-commands.ts",
+    "lint": "eslint src --ext .ts"
+  },
+  "keywords": [
+    "discord",
+    "openclaw",
+    "bot",
+    "thread-management"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@mariozechner/pi-agent-core": "^0.64.0",
+    "@mariozechner/pi-ai": "^0.64.0",
+    "@types/js-yaml": "^4.0.9",
+    "discord.js": "^14.16.0",
+    "dotenv": "^16.4.0",
+    "js-yaml": "^4.1.1",
+    "openai": "^4.77.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "eslint": "^9.0.0",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.5.0"
+  }
+}

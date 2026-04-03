@@ -1,0 +1,56 @@
+# ── AI Provider Configuration ─────────────────────────────────────────────────
+# Copy this file to providers.yaml and fill in your values.
+# If providers.yaml is not present, the conductor falls back to .env settings
+# (OPENAI_API_KEY / OPENAI_MODEL / OPENAI_BASE_URL).
+
+providers:
+  # Each provider entry defines an OpenAI-compatible endpoint.
+  #
+  # api:         API protocol — openai-completions | anthropic-messages |
+  #              google-generative-ai | google-vertex | openai-responses | etc.
+  # api_key_env: name of the environment variable holding the API key
+  # api_key:     inline key value (use api_key_env for secrets instead)
+  # models:      catalog of models offered by this provider
+
+  - id: openai
+    base_url: https://api.openai.com/v1
+    api: openai-completions
+    api_key_env: OPENAI_API_KEY
+    models:
+      - id: gpt-4o
+        nickname: gpt
+        context_window: 128000
+        max_tokens: 16384
+      - id: gpt-4o-mini
+        nickname: gpt-mini
+        context_window: 128000
+        max_tokens: 16384
+
+  # - id: groq
+  #   base_url: https://api.groq.com/openai/v1
+  #   api: openai-completions
+  #   api_key_env: GROQ_API_KEY
+  #   models:
+  #     - id: llama-3.3-70b-versatile
+  #       nickname: llama
+  #       context_window: 128000
+  #       max_tokens: 32768
+
+  # - id: ollama
+  #   base_url: http://localhost:11434/v1
+  #   api: openai-completions
+  #   api_key: ollama
+  #   models:
+  #     - id: llama3.2
+  #       nickname: llama
+  #       context_window: 128000
+  #       max_tokens: 8192
+
+# model_chain: ordered list of model nicknames (or full model ids) to try.
+# The conductor starts with the first entry. On failure it falls back to the next
+# and stays there until the retry cooldown expires (from error response, default 30 min).
+# Use /model in Discord to inspect or switch the active model at runtime.
+
+model_chain:
+  - gpt        # primary
+  - gpt-mini   # fallback
