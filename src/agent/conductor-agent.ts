@@ -4,7 +4,7 @@ import { Agent } from '@mariozechner/pi-agent-core';
 import type { Guild } from 'discord.js';
 import { logger } from '../logger';
 import { buildTools } from './tools';
-import { loadContext, appendContext, parseContextMessages } from './context-store';
+import { loadContext, appendContext } from './context-store';
 import { loadMemorySummary } from './long-term-memory';
 import { loadModelChain, type ResolvedModel } from './provider-config';
 
@@ -152,24 +152,34 @@ function loadMemoryBlock(): string {
 }
 
 /**
- * Build onPayload hook that splits system prompt into two cache breakpoints:
- *   block 1 → AGENT.md  (cache_control: ephemeral)
- *   block 2 → SUMMARY.md (cache_control: ephemeral)
+ * Build onPayload hook that splits system prompt into cache breakpoints:
+ *   block 1 → AGENT.md       (cache_control: ephemeral) — BP 1, never changes
+ *   block 2 → SUMMARY.md     (cache_control: ephemeral) — BP 2, grows slowly
+ *   block 3 → Prior context  (no cache_control)          — changes every turn
  *
- * Only applied for Anthropic messages API (api === 'anthropic-messages').
- * Other providers receive the combined system string unchanged.
+ * For non-Anthropic providers the payload has no system array — returned unchanged.
  */
-function buildOnPayload(memorySummary: string): ((payload: unknown, model: any) => unknown) | undefined {
-  if (!memorySummary) return undefined;
+function buildOnPayload(
+  memorySummary: string,
+  priorContext: string,
+): ((payload: unknown, model: any) => unknown) | undefined {
+  if (!memorySummary && !priorContext) return undefined;
   return (payload: any) => {
     if (!payload || typeof payload !== 'object') return payload;
     if (!Array.isArray(payload.system)) return payload;
     const cacheControl = { type: 'ephemeral' };
-    // Mark all existing system blocks (AGENT.md) as BP 1
+    // Block 1: AGENT.md — already built by pi-ai, mark as BP1
     const block1 = payload.system.map((b: any) => ({ ...b, cache_control: cacheControl }));
-    // Append memory summary as BP 2
-    const block2 = { type: 'text', text: memorySummary, cache_control: cacheControl };
-    return { ...payload, system: [...block1, block2] };
+    const extra: any[] = [];
+    // Block 2: Memory summary — BP2
+    if (memorySummary) {
+      extra.push({ type: 'text', text: memorySummary, cache_control: cacheControl });
+    }
+    // Block 3: Prior conversation — no cache (changes every turn)
+    if (priorContext) {
+      extra.push({ type: 'text', text: `## Prior Conversation\n\n${priorContext}` });
+    }
+    return { ...payload, system: [...block1, ...extra] };
   };
 }
 
@@ -245,7 +255,7 @@ export async function chat(
 ): Promise<string> {
   const systemPrompt = loadAgentSystemPrompt();
   const memorySummary = loadMemoryBlock();
-  const priorMessages = parseContextMessages(threadId);
+  const priorContext = loadContext(threadId);
   const tools = buildTools(guild, discordCtx);
   const modelChain = getModelChain();
 
@@ -260,9 +270,9 @@ export async function chat(
       logger.info(`Using sticky model "${model.name}" (primary still in cooldown)`);
     }
 
-    const onPayload = buildOnPayload(memorySummary);
+    const onPayload = buildOnPayload(memorySummary, priorContext);
     const agent = new Agent({
-      initialState: { systemPrompt, model, tools, messages: priorMessages as any[] },
+      initialState: { systemPrompt, model, tools },
       getApiKey: () => model.apiKey,
       ...(onPayload ? { onPayload } : {}),
     });

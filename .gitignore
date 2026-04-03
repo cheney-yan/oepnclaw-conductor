@@ -9,7 +9,8 @@ dist/
 
 # Runtime data — local only
 data/
-logs/
+logs/*
+!logs/.gitkeep
 
 # Long-term memory — personal, never commit
 data/memory/

@@ -9,8 +9,8 @@ Orchestrating OpenClaw agents and other Discord bots comes next — the conducto
 ## Prerequisites
 
 - Node.js 20+
-- An OpenAI-compatible API key
 - A Discord server where you have admin rights
+- An AI provider configured in `providers.yaml` (see `providers.example.yaml`)
 
 ---
 
@@ -34,20 +34,25 @@ npm install
 cp .env.example .env
 ```
 
-Edit `.env` — only **two values** required:
+Edit `.env` — only **one value** required:
 
 ```env
 DISCORD_BOT_TOKEN=    # from step 1
-OPENAI_API_KEY=       # your OpenAI-compatible API key
+```
+
+Configure your AI provider:
+
+```bash
+cp providers.example.yaml providers.yaml
+# edit providers.yaml — set your API key(s) and preferred model(s)
 ```
 
 ```bash
-npm start
+npm run build
+npm run serve
 ```
 
 The bot auto-detects its application ID, registers slash commands, and comes online.
-
-**Optional:** copy `providers.example.yaml` → `providers.yaml` for multi-provider fallback chain.
 
 ---
 

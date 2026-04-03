@@ -766,6 +766,40 @@ export function buildTools(guild: Guild | null, ctx?: DiscordContext): AgentTool
       },
     },
 
+    // ── delete_message ───────────────────────────────────────────────────────
+    {
+      name: 'delete_message',
+      label: 'Delete Message',
+      description:
+        'Delete a specific message by ID. Works in DM channels and guild channels/threads. ' +
+        'In DMs the bot can only delete its own messages (Discord limitation). ' +
+        'In guild channels the bot can delete any message if it has Manage Messages permission. ' +
+        'Use get_current_context to find the current channel ID if needed.',
+      parameters: Type.Object({
+        message_id: Type.String({ description: 'ID of the message to delete' }),
+        channel_id: Type.Optional(Type.String({ description: 'Channel or DM channel ID. Defaults to the current context channel.' })),
+      }),
+      execute: async (_id, p: { message_id: string; channel_id?: string }) => {
+        const targetChannelId = p.channel_id ?? ctx?.channelId;
+        if (!targetChannelId) return ok('No channel_id provided and no current context available.');
+        // guild.client reaches all channels including DMs
+        const ch = guild.client.channels.cache.get(targetChannelId) as any;
+        if (!ch) return ok(`Channel ${targetChannelId} not found in cache.`);
+        let message: any;
+        try {
+          message = await ch.messages.fetch(p.message_id);
+        } catch (err: any) {
+          return ok(`Could not fetch message ${p.message_id}: ${err.message?.slice(0, 80)}`);
+        }
+        try {
+          await message.delete();
+          return ok(`Message ${p.message_id} deleted.`);
+        } catch (err: any) {
+          return ok(`Failed to delete message ${p.message_id}: ${err.message?.slice(0, 80)}`);
+        }
+      },
+    },
+
     // ── remember_channel ─────────────────────────────────────────────────────
     {
       name: 'remember_channel',
