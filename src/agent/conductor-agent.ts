@@ -4,8 +4,8 @@ import { Agent } from '@mariozechner/pi-agent-core';
 import type { Guild } from 'discord.js';
 import { logger } from '../logger';
 import { buildTools } from './tools';
-import { loadContext, appendContext } from './context-store';
-import { loadLongTermMemory } from './long-term-memory';
+import { loadContext, appendContext, parseContextMessages } from './context-store';
+import { loadMemorySummary } from './long-term-memory';
 import { loadModelChain, type ResolvedModel } from './provider-config';
 
 // Model chain loaded once at startup
@@ -139,13 +139,38 @@ function loadSystemPrompt(): string {
   return fs.readFileSync(agentMdPath, 'utf-8');
 }
 
-function buildSystemPrompt(priorContext: string): string {
-  const base = loadSystemPrompt();
-  const memory = loadLongTermMemory();
-  const parts = [base];
-  if (memory) parts.push(`---\n\n## Long-term Memory\n\n${memory}`);
-  if (priorContext) parts.push(`---\n\n## Prior Conversation\n\n${priorContext}`);
-  return parts.join('\n\n');
+/** System prompt block 1: AGENT.md only. Never changes → cache BP 1. */
+function loadAgentSystemPrompt(): string {
+  return loadSystemPrompt();
+}
+
+/** System prompt block 2: Memory summary. Grows one line per session → cache BP 2. */
+function loadMemoryBlock(): string {
+  const summary = loadMemorySummary();
+  if (!summary) return '';
+  return `## Memory Summary\n\n${summary}`;
+}
+
+/**
+ * Build onPayload hook that splits system prompt into two cache breakpoints:
+ *   block 1 → AGENT.md  (cache_control: ephemeral)
+ *   block 2 → SUMMARY.md (cache_control: ephemeral)
+ *
+ * Only applied for Anthropic messages API (api === 'anthropic-messages').
+ * Other providers receive the combined system string unchanged.
+ */
+function buildOnPayload(memorySummary: string): ((payload: unknown, model: any) => unknown) | undefined {
+  if (!memorySummary) return undefined;
+  return (payload: any) => {
+    if (!payload || typeof payload !== 'object') return payload;
+    if (!Array.isArray(payload.system)) return payload;
+    const cacheControl = { type: 'ephemeral' };
+    // Mark all existing system blocks (AGENT.md) as BP 1
+    const block1 = payload.system.map((b: any) => ({ ...b, cache_control: cacheControl }));
+    // Append memory summary as BP 2
+    const block2 = { type: 'text', text: memorySummary, cache_control: cacheControl };
+    return { ...payload, system: [...block1, block2] };
+  };
 }
 
 function extractText(msg: any): string {
@@ -218,8 +243,9 @@ export async function chat(
   onToolEnd?: (evt: ToolEvent) => void,
   discordCtx?: DiscordContext
 ): Promise<string> {
-  const priorContext = loadContext(threadId);
-  const systemPrompt = buildSystemPrompt(priorContext);
+  const systemPrompt = loadAgentSystemPrompt();
+  const memorySummary = loadMemoryBlock();
+  const priorMessages = parseContextMessages(threadId);
   const tools = buildTools(guild, discordCtx);
   const modelChain = getModelChain();
 
@@ -234,9 +260,11 @@ export async function chat(
       logger.info(`Using sticky model "${model.name}" (primary still in cooldown)`);
     }
 
+    const onPayload = buildOnPayload(memorySummary);
     const agent = new Agent({
-      initialState: { systemPrompt, model, tools },
+      initialState: { systemPrompt, model, tools, messages: priorMessages as any[] },
       getApiKey: () => model.apiKey,
+      ...(onPayload ? { onPayload } : {}),
     });
 
     runningAgents.set(threadId, agent);

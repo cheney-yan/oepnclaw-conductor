@@ -13,7 +13,7 @@ import type { ConductorClient } from '../client';
 import { logger } from '../../logger';
 import { chat, abortIfRunning, steerIfRunning, isAgentRunning, type ToolEvent, type DiscordContext } from '../../agent/conductor-agent';
 import { resolveDmSession, forceNewDmSession, loadContext } from '../../agent/context-store';
-import { writeLongTermMemory, loadLongTermMemory } from '../../agent/long-term-memory';
+import { writeMemoryBlock, appendMemorySummary } from '../../agent/long-term-memory';
 
 // Track the active "thinking" message per thread so we can mark it cancelled
 const activeThinking = new Map<string, Message>();
@@ -175,19 +175,37 @@ async function handleDmClean(msg: Message, client: ConductorClient): Promise<voi
   const channel = msg.channel as DMChannel;
   const botId = client.user!.id;
 
-  // 1. Archive current session context to long-term memory
+  // 1. Summarize current session via AI and write as a memory block
   const sessionId = resolveDmSession(msg.channelId);
   const context = loadContext(sessionId);
+  const status = await channel.send('🧠 Summarizing session to memory...');
+
   if (context) {
-    const ts = new Date().toISOString();
-    const existing = loadLongTermMemory();
-    const archive = `${existing ? existing + '\n\n' : ''}---\n\n## DM Archive [${ts}]\n\n${context}`;
-    writeLongTermMemory(archive);
-    logger.info(`DM archived to long-term memory (session: ${sessionId})`);
+    try {
+      const summaryPrompt =
+        'Summarize this conversation into a concise memory block. ' +
+        'Extract key facts, decisions, configurations, and anything worth remembering. ' +
+        'Be brief and factual — no greetings or filler. ' +
+        'First line: one-sentence summary (max 120 chars). ' +
+        'Then a Markdown list of key points.\n\n' +
+        context;
+
+      const summaryText = await chat(null, summaryPrompt, `__clean__${sessionId}`, undefined, undefined);
+      if (summaryText && summaryText !== '__aborted__') {
+        const lines = summaryText.trim().split('\n').filter(Boolean);
+        const summaryLine = lines[0].replace(/^#+\s*/, '').replace(/^\*+/, '').trim().slice(0, 120);
+        const filename = writeMemoryBlock(summaryText);
+        appendMemorySummary(`${summaryLine} (→ ${filename})`);
+        logger.info(`DM session summarized to memory block: ${filename}`);
+      }
+    } catch (err: any) {
+      logger.warn(`Failed to summarize session: ${err.message}`);
+    }
   }
 
+  await status.edit('🗄️ Memory saved. Clearing my messages...');
+
   // 2. Fetch and delete all bot messages in the DM
-  const status = await channel.send('🗄️ Archiving... then clearing my messages.');
   let deleted = 0;
   let lastId: Snowflake | undefined;
 

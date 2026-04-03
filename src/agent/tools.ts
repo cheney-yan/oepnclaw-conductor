@@ -7,7 +7,7 @@ import { createTopic, getAllOpenTopics, getTopicByThread, closeTopic } from '../
 import { summarizeThread } from '../lifecycle/summarizer';
 import { writeMemoryArtifact } from '../lifecycle/memory-store';
 import { buildOpenClawTools } from './openclaw-tools';
-import { loadLongTermMemory, writeLongTermMemory } from './long-term-memory';
+import { loadMemorySummary, writeMemoryBlock, appendMemorySummary, listMemoryBlocks, readMemoryBlock } from './long-term-memory';
 import type { DiscordContext } from './conductor-agent';
 
 function ok(text: string): AgentToolResult<undefined> {
@@ -17,29 +17,46 @@ function ok(text: string): AgentToolResult<undefined> {
 function buildMemoryTools(): AgentTool<any>[] {
   return [
     {
-      name: 'memory_read',
-      label: 'Read Long-term Memory',
-      description: 'Read the current long-term memory. Call this when the user asks what you remember.',
+      name: 'memory_read_summary',
+      label: 'Read Memory Summary',
+      description:
+        'Read the memory summary index — one line per memory block. ' +
+        'Call this to see what memories exist before reading a specific block.',
       parameters: Type.Object({}),
       execute: async () => {
-        const content = loadLongTermMemory();
-        return ok(content || '(memory is empty)');
+        const summary = loadMemorySummary();
+        const blocks = listMemoryBlocks();
+        const lines = [`## Memory Summary\n${summary || '(empty)'}\n\n## Available blocks (${blocks.length})`];
+        for (const f of blocks) lines.push(`- ${f}`);
+        return ok(lines.join('\n'));
       },
     },
     {
-      name: 'memory_write',
-      label: 'Write Long-term Memory',
-      description:
-        'Overwrite the long-term memory with new content. ' +
-        'ONLY call this when the user explicitly asks you to remember something. ' +
-        'Never call this on your own initiative. ' +
-        'Preserve existing content unless the user asks you to replace or remove something.',
+      name: 'memory_read_block',
+      label: 'Read Memory Block',
+      description: 'Read the full content of a specific memory block by filename (e.g. "2026-04-03T10-00-00-000Z.md").',
       parameters: Type.Object({
-        content: Type.String({ description: 'Full new content of the memory file (Markdown)' }),
+        filename: Type.String({ description: 'Memory block filename as listed in the summary' }),
       }),
-      execute: async (_id, p: { content: string }) => {
-        writeLongTermMemory(p.content);
-        return ok('Memory updated.');
+      execute: async (_id, p: { filename: string }) => {
+        return ok(readMemoryBlock(p.filename));
+      },
+    },
+    {
+      name: 'memory_write_block',
+      label: 'Write Memory Block',
+      description:
+        'Save a new memory block with detailed content and a one-line summary for the index. ' +
+        'Call this when the user asks you to remember something, or at end of a work session. ' +
+        'Write concise, factual content — not raw conversation.',
+      parameters: Type.Object({
+        summary: Type.String({ description: 'One-line summary for the memory index (max 120 chars)' }),
+        content: Type.String({ description: 'Full memory content in Markdown' }),
+      }),
+      execute: async (_id, p: { summary: string; content: string }) => {
+        const filename = writeMemoryBlock(p.content);
+        appendMemorySummary(`${p.summary.slice(0, 120)} (→ ${filename})`);
+        return ok(`Memory saved as ${filename}`);
       },
     },
   ];

@@ -67,6 +67,50 @@ export function forceNewDmSession(channelId: string): string {
 
 // ── Core context operations ──────────────────────────────────────────────────
 
+export interface ContextMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: number;
+}
+
+/**
+ * Parse a context file into structured messages for use as initialState.messages.
+ * Handles the "**User** [ts]: ..." / "**Conductor**: ..." Markdown format.
+ */
+export function parseContextMessages(sessionId: string): ContextMessage[] {
+  const file = contextFile(sessionId);
+  if (!fs.existsSync(file)) return [];
+  const raw = fs.readFileSync(file, 'utf-8');
+  const messages: ContextMessage[] = [];
+
+  // Split on separator lines, each block is a user+assistant pair
+  const userRe = /^\*\*User\*\*\s*\[([^\]]+)\]:\s*([\s\S]*?)(?=\n\n\*\*Conductor\*\*:)/m;
+  const conductorRe = /^\*\*Conductor\*\*:\s*([\s\S]*?)$/m;
+
+  // Walk through blocks separated by ---
+  const blocks = raw.split(/^---$/m).map(b => b.trim()).filter(Boolean);
+  for (const block of blocks) {
+    if (block.startsWith('# Session:')) continue; // header block
+    const uMatch = userRe.exec(block);
+    const cMatch = conductorRe.exec(block);
+    if (uMatch) {
+      messages.push({
+        role: 'user',
+        content: uMatch[2].trim(),
+        timestamp: new Date(uMatch[1]).getTime() || Date.now(),
+      });
+    }
+    if (cMatch) {
+      messages.push({
+        role: 'assistant',
+        content: cMatch[1].trim(),
+        timestamp: Date.now(),
+      });
+    }
+  }
+  return messages;
+}
+
 export function loadContext(sessionId: string): string {
   const file = contextFile(sessionId);
   if (!fs.existsSync(file)) return '';
